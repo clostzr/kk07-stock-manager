@@ -1,0 +1,251 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Warehouse Stock Manager</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;max-width:980px;margin:24px auto;padding:0 16px;}
+    header{display:flex;gap:16px;align-items:center;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid #ddd;padding:8px;text-align:left}
+    th{background:#f7f7f7}
+    .small{font-size:0.9em;color:#555}
+    button{padding:6px 10px;border-radius:6px;border:1px solid #bbb;background:#fff;cursor:pointer}
+    .in{background:#ecffef} .out{background:#fff0f0}
+    .controls{display:flex;gap:8px;flex-wrap:wrap}
+    .form-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+    .history{max-height:240px;overflow:auto;border:1px solid #eee;padding:8px;background:#fafafa;margin-top:8px}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Warehouse Stock Manager</h1>
+    <div class="small">Real-time using Firebase Firestore</div>
+  </header>
+
+  <section id="authSection" class="small"></section>
+
+  <section aria-labelledby="addItemTitle">
+    <h2 id="addItemTitle">Create new item</h2>
+    <div class="form-row">
+      <input id="sku" placeholder="SKU (unique)" />
+      <input id="name" placeholder="Item name" style="flex:1" />
+      <input id="initialQty" type="number" placeholder="Initial qty" style="width:120px" />
+      <button id="createItemBtn">Create</button>
+    </div>
+    <div class="small">If SKU exists, it will not be overwritten.</div>
+  </section>
+
+  <section aria-labelledby="itemsTitle">
+    <h2 id="itemsTitle">Items</h2>
+    <div class="controls">
+      <input id="search" placeholder="Search SKU or name" />
+      <button id="refresh">Refresh</button>
+      <button id="signInBtn">Sign in (Google)</button>
+      <button id="signOutBtn" style="display:none">Sign out</button>
+    </div>
+
+    <table id="itemsTable" aria-live="polite">
+      <thead><tr><th>SKU</th><th>Name</th><th>Balance</th><th>Actions</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="historyPanel" style="display:none">
+    <h3>History for <span id="historyTitle"></span></h3>
+    <div id="history" class="history"></div>
+    <button id="closeHistory">Close</button>
+  </section>
+
+  <script type="module">
+    // --- FIREBASE CONFIG: replace with your project's config ---
+    const firebaseConfig = {
+      apiKey: "REPLACE_ME",
+      authDomain: "REPLACE_ME.firebaseapp.com",
+      projectId: "REPLACE_ME",
+      // messagingSenderId, appId, etc are optional for this sample
+    };
+    // --- end config ---
+
+    // Firebase modular SDK v9+ via CDN
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import {
+      getFirestore, collection, doc, onSnapshot, setDoc, addDoc, getDoc,
+      runTransaction, query, orderBy, serverTimestamp, where, getDocs
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+    import {
+      getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut
+    } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // UI refs
+    const skuInput = document.getElementById('sku');
+    const nameInput = document.getElementById('name');
+    const initialQtyInput = document.getElementById('initialQty');
+    const createBtn = document.getElementById('createItemBtn');
+    const itemsTableBody = document.querySelector('#itemsTable tbody');
+    const searchInput = document.getElementById('search');
+    const refreshBtn = document.getElementById('refresh');
+    const historyPanel = document.getElementById('historyPanel');
+    const historyTitle = document.getElementById('historyTitle');
+    const historyDiv = document.getElementById('history');
+    const closeHistory = document.getElementById('closeHistory');
+    const signInBtn = document.getElementById('signInBtn');
+    const signOutBtn = document.getElementById('signOutBtn');
+    const authSection = document.getElementById('authSection');
+
+    let currentUser = null;
+    onAuthStateChanged(auth, user => {
+      currentUser = user;
+      authSection.textContent = user ? `Signed in as ${user.displayName || user.email}` : 'Not signed in';
+      signInBtn.style.display = user ? 'none' : '';
+      signOutBtn.style.display = user ? '' : 'none';
+    });
+
+    signInBtn.addEventListener('click', async () => {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    });
+    signOutBtn.addEventListener('click', () => signOut(auth));
+
+    // Create item (only if SKU not exists)
+    createBtn.addEventListener('click', async () => {
+      const sku = skuInput.value.trim();
+      const name = nameInput.value.trim();
+      const initialQty = parseInt(initialQtyInput.value || '0', 10) || 0;
+      if (!sku || !name) return alert('SKU and name required.');
+      const docRef = doc(db, 'items', sku);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) return alert('SKU already exists.');
+      await setDoc(docRef, {
+        sku,
+        name,
+        balance: initialQty,
+        createdAt: serverTimestamp()
+      });
+      // add initial transaction if initialQty > 0
+      if (initialQty !== 0) {
+        const txRef = doc(collection(docRef, 'transactions'));
+        await setDoc(txRef, {
+          quantity: initialQty,
+          type: initialQty > 0 ? 'in' : 'out',
+          note: 'Initial stock',
+          createdAt: serverTimestamp(),
+          user: currentUser ? currentUser.uid : null
+        });
+      }
+      skuInput.value = nameInput.value = initialQtyInput.value = '';
+    });
+
+    // Realtime items list
+    const itemsCol = collection(db, 'items');
+    const itemsQ = query(itemsCol, orderBy('sku'));
+    let unsubscribeItems = null;
+    function subscribeItems() {
+      if (unsubscribeItems) unsubscribeItems();
+      unsubscribeItems = onSnapshot(itemsQ, snapshot => {
+        renderItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      });
+    }
+    subscribeItems();
+
+    function renderItems(items) {
+      const q = searchInput.value.trim().toLowerCase();
+      itemsTableBody.innerHTML = '';
+      items.filter(it => !q || it.sku.toLowerCase().includes(q) || (it.name || '').toLowerCase().includes(q))
+           .forEach(it => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${it.sku}</td>
+          <td>${escapeHtml(it.name||'')}</td>
+          <td><strong>${(it.balance||0)}</strong></td>
+          <td>
+            <button data-id="${it.id}" class="btn-in in">+ IN</button>
+            <button data-id="${it.id}" class="btn-out out">- OUT</button>
+            <button data-id="${it.id}" class="btn-hist">History</button>
+          </td>`;
+        itemsTableBody.appendChild(tr);
+      });
+    }
+
+    // click handlers delegated
+    itemsTableBody.addEventListener('click', async (e) => {
+      const t = e.target;
+      const id = t.dataset.id;
+      if (!id) return;
+      if (t.classList.contains('btn-in') || t.classList.contains('btn-out')) {
+        const type = t.classList.contains('btn-in') ? 'in' : 'out';
+        const qty = parseInt(prompt(`${type === 'in' ? 'Add' : 'Remove'} quantity:`,'1'),10);
+        if (!qty || qty <= 0) return;
+        const note = prompt('Optional note','');
+        await changeStock(id, type === 'in' ? qty : -qty, type, note);
+      } else if (t.classList.contains('btn-hist')) {
+        openHistory(id);
+      }
+    });
+
+    // changeStock uses a runTransaction to atomically update balance and add transaction doc
+    async function changeStock(itemId, delta, type, note='') {
+      const itemRef = doc(db, 'items', itemId);
+      const txsCollection = collection(itemRef, 'transactions');
+      try {
+        await runTransaction(db, async (transaction) => {
+          const docSnap = await transaction.get(itemRef);
+          if (!docSnap.exists()) throw new Error('Item not found');
+          const current = docSnap.data().balance || 0;
+          const newBal = current + delta;
+          if (newBal < 0) throw new Error('Insufficient stock (would go negative)');
+          transaction.update(itemRef, { balance: newBal });
+          // create transaction doc inside the same transaction
+          const newTxRef = doc(txsCollection);
+          transaction.set(newTxRef, {
+            quantity: delta,
+            type,
+            note: note || '',
+            createdAt: serverTimestamp(),
+            user: currentUser ? currentUser.uid : null
+          });
+        });
+        // success
+      } catch (err) {
+        alert('Error: ' + (err.message || err));
+      }
+    }
+
+    // show history (last 100 ordered desc)
+    async function openHistory(itemId) {
+      historyPanel.style.display = '';
+      historyTitle.textContent = itemId;
+      historyDiv.innerHTML = 'Loading...';
+      const txsRef = collection(doc(db,'items',itemId), 'transactions');
+      const q = query(txsRef, orderBy('createdAt', 'desc'));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        historyDiv.innerHTML = '<div class="small">No transactions</div>';
+        return;
+      }
+      historyDiv.innerHTML = '';
+      snap.docs.slice(0,200).forEach(d => {
+        const data = d.data();
+        const when = data.createdAt ? (new Date(data.createdAt.seconds * 1000)).toLocaleString() : '';
+        const line = document.createElement('div');
+        line.innerHTML = `<strong ${data.quantity>0? 'class="in"':''}>${data.quantity}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class="small">by ${escapeHtml(data.user||'anon')} at ${when}</span>`;
+        historyDiv.appendChild(line);
+      });
+    }
+    closeHistory.addEventListener('click', () => { historyPanel.style.display='none'; });
+
+    refreshBtn.addEventListener('click', () => subscribeItems());
+    searchInput.addEventListener('input', () => { /* rerender will be triggered by onSnapshot already; force quick refresh: */ subscribeItems(); });
+
+    function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c])); }
+
+    // initial sample: (uncomment to create a sample item on first load)
+    // setDoc(doc(db,'items','SAMPLE1'),{sku:'SAMPLE1',name:'Sample Item',balance:10,createdAt:serverTimestamp()});
+  </script>
+</body>
+</html>
