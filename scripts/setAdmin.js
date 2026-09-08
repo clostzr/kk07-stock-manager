@@ -26,7 +26,6 @@ try {
   try {
     adminModule = await import('firebase-admin');
   } catch (e) {
-    // fallback to require (older Node / CommonJS)
     try {
       adminModule = require('firebase-admin');
     } catch (e2) {
@@ -35,18 +34,21 @@ try {
     }
   }
 
-  // normalize export (ESM default vs CommonJS)
   const admin = adminModule.default || adminModule;
 
-  // diagnostic if shape unexpected
-  if (!admin || !admin.credential || typeof admin.credential.cert !== 'function') {
-    console.error('firebase-admin did not expose credential.cert as expected. Available keys:', Object.keys(admin || {}));
+  // Accept either admin.credential.cert(...) or admin.cert(...)
+  const hasCredentialCert = admin && admin.credential && typeof admin.credential.cert === 'function';
+  const hasTopLevelCert = admin && typeof admin.cert === 'function';
+
+  if (!hasCredentialCert && !hasTopLevelCert) {
+    console.error('firebase-admin did not expose credential.cert or cert as expected. Available keys:', Object.keys(admin || {}));
     process.exit(1);
   }
 
   try {
+    const credentialFactory = hasCredentialCert ? admin.credential.cert : admin.cert;
     admin.initializeApp({
-      credential: admin.credential.cert(serviceAccount)
+      credential: credentialFactory(serviceAccount)
     });
 
     await admin.auth().setCustomUserClaims(uid, { admin: true });
