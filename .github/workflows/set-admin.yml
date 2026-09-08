@@ -38,14 +38,18 @@ jobs:
           SA_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           set -euo pipefail
-          echo "Writing secret to service-account.json (temporary)"
+
+          # Write the secret to a temporary file using a heredoc.
+          # IMPORTANT: the opening and closing 'JSON' markers below must be
+          # indented exactly as shown (they belong to the run block).
           cat > ./service-account.json <<'JSON'
-${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-JSON
+          ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          JSON
           chmod 600 ./service-account.json
-          echo "Validating JSON..."
+
+          # Validate raw JSON
           if node -e "JSON.parse(require('fs').readFileSync('./service-account.json','utf8')); console.log('RAW JSON OK');" 2>/dev/null; then
-            echo "Service account is valid JSON."
+            echo "Service account is valid JSON (raw)."
           else
             echo "Raw content is not valid JSON — attempting base64 decode..."
             if echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | base64 --decode > ./service-account.json.decoded 2>/dev/null; then
@@ -63,6 +67,7 @@ JSON
               exit 1
             fi
           fi
+
           echo "service-account.json size: $(wc -c < ./service-account.json) bytes"
 
       - name: Install firebase-admin
