@@ -82,6 +82,7 @@
     } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
     const app = initializeApp(firebaseConfig);
+    console.log('Firebase initialized for project:', firebaseConfig.projectId);
     const db = getFirestore(app);
     const auth = getAuth(app);
 
@@ -104,16 +105,30 @@
     let currentUser = null;
     onAuthStateChanged(auth, user => {
       currentUser = user;
+      console.log('onAuthStateChanged:', user);
       authSection.textContent = user ? `Signed in as ${user.displayName || user.email}` : 'Not signed in';
       signInBtn.style.display = user ? 'none' : '';
       signOutBtn.style.display = user ? '' : 'none';
     });
 
     signInBtn.addEventListener('click', async () => {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      try {
+        const provider = new GoogleAuthProvider();
+        const result = await signInWithPopup(auth, provider);
+        console.log('signInWithPopup result:', result.user && { uid: result.user.uid, email: result.user.email });
+      } catch (err) {
+        console.error('Error during sign-in:', err);
+        alert('Sign-in error: ' + (err.message || err));
+      }
     });
-    signOutBtn.addEventListener('click', () => signOut(auth));
+    signOutBtn.addEventListener('click', async () => {
+      try {
+        await signOut(auth);
+        console.log('Signed out');
+      } catch (err) {
+        console.error('Sign-out error', err);
+      }
+    });
 
     // Create item (only if SKU not exists)
     createBtn.addEventListener('click', async () => {
@@ -124,24 +139,31 @@
       const docRef = doc(db, 'items', sku);
       const snap = await getDoc(docRef);
       if (snap.exists()) return alert('SKU already exists.');
-      await setDoc(docRef, {
-        sku,
-        name,
-        balance: initialQty,
-        createdAt: serverTimestamp()
-      });
-      // add initial transaction if initialQty > 0
-      if (initialQty !== 0) {
-        const txRef = doc(collection(docRef, 'transactions'));
-        await setDoc(txRef, {
-          quantity: initialQty,
-          type: initialQty > 0 ? 'in' : 'out',
-          note: 'Initial stock',
-          createdAt: serverTimestamp(),
-          user: currentUser ? currentUser.uid : null
+      try {
+        await setDoc(docRef, {
+          sku,
+          name,
+          balance: initialQty,
+          createdAt: serverTimestamp()
         });
+        console.log('Created item', sku, { name, initialQty });
+        // add initial transaction if initialQty > 0
+        if (initialQty !== 0) {
+          const txRef = doc(collection(docRef, 'transactions'));
+          await setDoc(txRef, {
+            quantity: initialQty,
+            type: initialQty > 0 ? 'in' : 'out',
+            note: 'Initial stock',
+            createdAt: serverTimestamp(),
+            user: currentUser ? currentUser.uid : null
+          });
+          console.log('Created initial transaction for', sku, 'qty=', initialQty);
+        }
+        skuInput.value = nameInput.value = initialQtyInput.value = '';
+      } catch (err) {
+        console.error('Error creating item', err);
+        alert('Error creating item: ' + (err.message || err));
       }
-      skuInput.value = nameInput.value = initialQtyInput.value = '';
     });
 
     // Realtime items list
@@ -151,7 +173,10 @@
     function subscribeItems() {
       if (unsubscribeItems) unsubscribeItems();
       unsubscribeItems = onSnapshot(itemsQ, snapshot => {
+        console.log('items onSnapshot size:', snapshot.size);
         renderItems(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+      }, err => {
+        console.error('items onSnapshot error', err);
       });
     }
     subscribeItems();
@@ -195,6 +220,7 @@
     async function changeStock(itemId, delta, type, note='') {
       const itemRef = doc(db, 'items', itemId);
       const txsCollection = collection(itemRef, 'transactions');
+      console.log('changeStock start', { itemId, delta, type, user: currentUser && currentUser.uid });
       try {
         await runTransaction(db, async (transaction) => {
           const docSnap = await transaction.get(itemRef);
@@ -213,8 +239,9 @@
             user: currentUser ? currentUser.uid : null
           });
         });
-        // success
+        console.log('changeStock success', { itemId, delta });
       } catch (err) {
+        console.error('changeStock error', err);
         alert('Error: ' + (err.message || err));
       }
     }
@@ -226,19 +253,25 @@
       historyDiv.innerHTML = 'Loading...';
       const txsRef = collection(doc(db,'items',itemId), 'transactions');
       const q = query(txsRef, orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        historyDiv.innerHTML = '<div class="small">No transactions</div>';
-        return;
+      try {
+        const snap = await getDocs(q);
+        console.log('openHistory got tx count:', snap.size, 'for', itemId);
+        if (snap.empty) {
+          historyDiv.innerHTML = '<div class="small">No transactions</div>';
+          return;
+        }
+        historyDiv.innerHTML = '';
+        snap.docs.slice(0,200).forEach(d => {
+          const data = d.data();
+          const when = data.createdAt ? (new Date(data.createdAt.seconds * 1000)).toLocaleString() : '';
+          const line = document.createElement('div');
+          line.innerHTML = `<strong ${data.quantity>0? 'class="in"':''}>${data.quantity}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class="small">by ${escapeHtml(data.user||'anon')} at ${when}</span>`;
+          historyDiv.appendChild(line);
+        });
+      } catch (err) {
+        console.error('openHistory error', err);
+        historyDiv.innerHTML = '<div class="small">Error loading history</div>';
       }
-      historyDiv.innerHTML = '';
-      snap.docs.slice(0,200).forEach(d => {
-        const data = d.data();
-        const when = data.createdAt ? (new Date(data.createdAt.seconds * 1000)).toLocaleString() : '';
-        const line = document.createElement('div');
-        line.innerHTML = `<strong ${data.quantity>0? 'class="in"':''}>${data.quantity}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class="small">by ${escapeHtml(data.user||'anon')} at ${when}</span>`;
-        historyDiv.appendChild(line);
-      });
     }
     closeHistory.addEventListener('click', () => { historyPanel.style.display='none'; });
 
