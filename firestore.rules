@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null && request.auth.token.admin == true;
+    }
+
+    match /items/{itemId} {
+      // Allow anyone to read items; change to `request.auth != null` if you want to restrict reads
+      allow read: if true;
+
+      // Only admins (custom claim `admin: true`) can create/update/delete items
+      allow create, update, delete: if isAdmin();
+
+      match /transactions/{txId} {
+        allow read: if true;
+
+        // Only admins can create transactions and the `user` field must match the authenticated UID.
+        allow create: if isAdmin()
+                      && request.resource.data.user == request.auth.uid
+                      && request.resource.data.quantity is number
+                      && (request.resource.data.type == 'in' || request.resource.data.type == 'out');
+
+        // Transactions are immutable from the client
+        allow update, delete: if false;
+      }
+    }
+  }
+}
