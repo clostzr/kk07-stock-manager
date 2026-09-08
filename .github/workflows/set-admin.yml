@@ -17,15 +17,25 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js (target Node 24)
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '24.x'
 
-      - name: Write service account JSON from secret
+      - name: Show runtime info
         run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > ./service-account.json
+          echo "Runner: $(uname -a)"
+          node --version
+          npm --version
+
+      - name: Write service account JSON from secret (safe heredoc)
+        shell: bash
+        run: |
+          cat > ./service-account.json <<'JSON'
+${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+JSON
           chmod 600 ./service-account.json
+          echo "Wrote service-account.json (size: $(wc -c < ./service-account.json) bytes)"
 
       - name: Install firebase-admin
         run: npm install firebase-admin
@@ -34,4 +44,5 @@ jobs:
         run: node scripts/setAdmin.js ./service-account.json ${{ github.event.inputs.uid }}
 
       - name: Clean up service account
+        if: always()
         run: rm -f ./service-account.json
