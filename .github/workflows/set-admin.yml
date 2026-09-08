@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: set-admin-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   set-admin:
     runs-on: ubuntu-latest
@@ -28,21 +32,47 @@ jobs:
           node --version
           npm --version
 
-      - name: Write service account JSON from secret (safe heredoc)
+      - name: Write & validate service account JSON from secret
         shell: bash
+        env:
+          SA_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
+          set -euo pipefail
+          echo "Writing secret to service-account.json (temporary)"
           cat > ./service-account.json <<'JSON'
 ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 JSON
           chmod 600 ./service-account.json
-          echo "Wrote service-account.json (size: $(wc -c < ./service-account.json) bytes)"
+          echo "Validating JSON..."
+          if node -e "JSON.parse(require('fs').readFileSync('./service-account.json','utf8')); console.log('RAW JSON OK');" 2>/dev/null; then
+            echo "Service account is valid JSON."
+          else
+            echo "Raw content is not valid JSON — attempting base64 decode..."
+            if echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" | base64 --decode > ./service-account.json.decoded 2>/dev/null; then
+              if node -e "JSON.parse(require('fs').readFileSync('./service-account.json.decoded','utf8')); console.log('DECODED JSON OK');" 2>/dev/null; then
+                mv ./service-account.json.decoded ./service-account.json
+                chmod 600 ./service-account.json
+                echo "Service account written from base64-decoded secret."
+              else
+                echo "Base64 decoded content is not valid JSON." >&2
+                rm -f ./service-account.json.decoded
+                exit 1
+              fi
+            else
+              echo "Base64 decode failed." >&2
+              exit 1
+            fi
+          fi
+          echo "service-account.json size: $(wc -c < ./service-account.json) bytes"
 
       - name: Install firebase-admin
-        run: npm install firebase-admin
+        run: npm install firebase-admin --no-audit --no-fund
 
       - name: Run setAdmin script
         run: node scripts/setAdmin.js ./service-account.json ${{ github.event.inputs.uid }}
 
       - name: Clean up service account
         if: always()
-        run: rm -f ./service-account.json
+        run: |
+          rm -f ./service-account.json
+          rm -f ./service-account.json.decoded || true
