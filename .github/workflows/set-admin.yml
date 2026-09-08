@@ -1,0 +1,37 @@
+name: Set Firebase Admin Claim
+
+on:
+  workflow_dispatch:
+    inputs:
+      uid:
+        description: 'Firebase user UID to grant admin claim'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  set-admin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Write service account JSON from secret
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > ./service-account.json
+          chmod 600 ./service-account.json
+
+      - name: Install firebase-admin
+        run: npm install firebase-admin
+
+      - name: Run setAdmin script
+        run: node scripts/setAdmin.js ./service-account.json ${{ github.event.inputs.uid }}
+
+      - name: Clean up service account
+        run: rm -f ./service-account.json
