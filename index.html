@@ -47,7 +47,7 @@
     </div>
 
     <table id="itemsTable" aria-live="polite">
-      <thead><tr><th>SKU</th><th>Name</th><th>Balance</th><th>Actions</th></tr></thead>
+      <thead><tr><th>SKU</th><th>Name</th><th>Balance</th><th>Unit</th><th>Actions</th></tr></thead>
       <tbody></tbody>
     </table>
   </section>
@@ -186,18 +186,19 @@
       itemsTableBody.innerHTML = '';
       items.filter(it => !q || it.sku.toLowerCase().includes(q) || (it.name || '').toLowerCase().includes(q))
            .forEach(it => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${it.sku}</td>
-          <td>${escapeHtml(it.name||'')}</td>
-          <td><strong>${(it.balance||0)}</strong></td>
-          <td>
-            <button data-id="${it.id}" class="btn-in in">+ IN</button>
-            <button data-id="${it.id}" class="btn-out out">- OUT</button>
-            <button data-id="${it.id}" class="btn-hist">History</button>
-          </td>`;
-        itemsTableBody.appendChild(tr);
-      });
+         const tr = document.createElement('tr');
+         tr.innerHTML = `
+           <td>${it.sku}</td>
+           <td>${escapeHtml(it.name||'')}</td>
+           <td><strong>${(it.balance||0)}</strong></td>
+           <td>${escapeHtml(it.unit||'')}</td>
+           <td>
+             <button data-id="${it.id}" class="btn-in in">+ IN</button>
+             <button data-id="${it.id}" class="btn-out out">- OUT</button>
+             <button data-id="${it.id}" class="btn-hist">History</button>
+           </td>`;
+         itemsTableBody.appendChild(tr);
+       });
     }
 
     // click handlers delegated
@@ -265,7 +266,8 @@
           const data = d.data();
           const when = data.createdAt ? (new Date(data.createdAt.seconds * 1000)).toLocaleString() : '';
           const line = document.createElement('div');
-          line.innerHTML = `<strong ${data.quantity>0? 'class="in"':''}>${data.quantity}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class="small">by ${escapeHtml(data.user||'anon')} at ${when}</span>`;
+          const qtyClass = (data.quantity || 0) > 0 ? 'in' : ((data.quantity || 0) < 0 ? 'out' : '');
+          line.innerHTML = `<strong ${qtyClass ? 'class="'+qtyClass+'"' : ''}>${escapeHtml(String(data.quantity||0))}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class="small">by ${escapeHtml(data.user||'unknown')}${when ? ' at ' + escapeHtml(when) : ''}</span>`;
           historyDiv.appendChild(line);
         });
       } catch (err) {
