@@ -50,12 +50,28 @@
     .in{background:linear-gradient(90deg, rgba(126,255,161,0.12), rgba(0,255,246,0.06));color:var(--success);border:1px solid rgba(126,255,161,0.12)}
     .out{background:linear-gradient(90deg, rgba(255,93,93,0.06), rgba(255,45,149,0.04));color:var(--danger);border:1px solid rgba(255,93,93,0.06)}
 
-    .btn-in{background:transparent;border:1px solid rgba(0,255,246,0.12);color:var(--accent);padding:6px 8px;border-radius:6px}
-    .btn-out{background:transparent;border:1px solid rgba(255,45,149,0.12);color:var(--accent-2);padding:6px 8px;border-radius:6px}
-    .btn-hist{background:transparent;border:1px dashed rgba(255,255,255,0.04);color:var(--muted);padding:6px 8px;border-radius:6px}
+    .btn-in{background:transparent;border:1px solid rgba(0,255,246,0.12);color:var(--accent);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-out{background:transparent;border:1px solid rgba(255,45,149,0.12);color:var(--accent-2);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-hist{background:transparent;border:1px dashed rgba(255,255,255,0.04);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-edit{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
 
     .form-row{display:flex;gap:8px;align-items:center;margin-top:8px}
     .history{max-height:320px;overflow:auto;border-radius:8px;padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid var(--glass-border);margin-top:8px}
+
+    /* Modal styles */
+    .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
+    .modal-overlay.active{display:flex}
+    .modal-content{background:linear-gradient(180deg,var(--panel), rgba(255,255,255,0.02));border:1px solid var(--glass-border);border-radius:10px;padding:20px;max-width:500px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,0.9)}
+    .modal-content h2{color:var(--accent);margin-top:0}
+    .modal-form-row{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+    .modal-form-row label{color:var(--muted);font-size:0.9em}
+    .modal-form-row input{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;background:transparent;color:#dfe7fb}
+    .modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+    .modal-buttons button{padding:8px 16px}
+
+    /* Floating history panel */
+    #historyPanel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(180deg,var(--panel), rgba(255,255,255,0.02));border:1px solid var(--glass-border);border-radius:10px;padding:20px;max-width:600px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 10px 50px rgba(0,0,0,0.9);z-index:999;display:none}
+    #historyPanel.active{display:block}
 
     @media (max-width:720px){
       .form-row{flex-direction:column;align-items:stretch}
@@ -63,6 +79,8 @@
       thead{display:none}
       tbody td{display:block;width:100%}
       tbody tr{margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.03)}
+      #historyPanel{width:95%;max-height:70vh}
+      .modal-content{width:95%}
     }
   </style>
 </head>
@@ -101,11 +119,44 @@
     </table>
   </section>
 
-  <section id="historyPanel" class="card" style="display:none;margin-top:12px">
-    <h3>History for <span id="historyTitle"></span></h3>
+  <section id="historyPanel" class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <h3 style="margin:0">History for <span id="historyTitle"></span></h3>
+      <button id="closeHistory" class="ghost">✕</button>
+    </div>
     <div id="history" class="history"></div>
-    <button id="closeHistory" class="ghost" style="margin-top:8px">Close</button>
   </section>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+      <h2>Edit Item</h2>
+      <div class="modal-form-row">
+        <label>SKU</label>
+        <input id="editSku" type="text" readonly style="opacity:0.6;cursor:not-allowed" />
+      </div>
+      <div class="modal-form-row">
+        <label>Name</label>
+        <input id="editName" type="text" />
+      </div>
+      <div class="modal-form-row">
+        <label>Unit</label>
+        <input id="editUnit" type="text" />
+      </div>
+      <div class="modal-form-row">
+        <label>Current Balance</label>
+        <input id="editBalance" type="number" />
+      </div>
+      <div class="modal-form-row">
+        <label>Add to Balance (for adjustment)</label>
+        <input id="editAdjustment" type="number" placeholder="Leave empty for no change" />
+      </div>
+      <div class="modal-buttons">
+        <button id="modalCancel" class="ghost">Cancel</button>
+        <button id="modalSave" class="primary">Save</button>
+      </div>
+    </div>
+  </div>
 
   <script type="module">
     // --- FIREBASE CONFIG: your project's config inserted here ---
@@ -124,7 +175,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
     import {
       getFirestore, collection, doc, onSnapshot, setDoc, addDoc, getDoc,
-      runTransaction, query, orderBy, serverTimestamp, where, getDocs
+      runTransaction, query, orderBy, serverTimestamp, where, getDocs, updateDoc
     } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
     import {
       getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut
@@ -151,8 +202,20 @@
     const signInBtn = document.getElementById('signInBtn');
     const signOutBtn = document.getElementById('signOutBtn');
     const authSection = document.getElementById('authSection');
+    
+    // Edit modal refs
+    const editModal = document.getElementById('editModal');
+    const editSku = document.getElementById('editSku');
+    const editName = document.getElementById('editName');
+    const editUnit = document.getElementById('editUnit');
+    const editBalance = document.getElementById('editBalance');
+    const editAdjustment = document.getElementById('editAdjustment');
+    const modalCancel = document.getElementById('modalCancel');
+    const modalSave = document.getElementById('modalSave');
 
     let currentUser = null;
+    let currentEditingItem = null;
+    
     onAuthStateChanged(auth, user => {
       currentUser = user;
       console.log('onAuthStateChanged:', user);
@@ -244,10 +307,11 @@
            <td>${escapeHtml(it.name||'')}</td>
            <td><strong>${(it.balance||0)}</strong></td>
            <td>${escapeHtml(it.unit||'')}</td>
-           <td>
-             <button data-id="${it.id}" class="btn-in in">+ IN</button>
-             <button data-id="${it.id}" class="btn-out out">- OUT</button>
+           <td style="display:flex;gap:6px;flex-wrap:wrap">
+             <button data-id="${it.id}" class="btn-in">+ IN</button>
+             <button data-id="${it.id}" class="btn-out">- OUT</button>
              <button data-id="${it.id}" class="btn-hist">History</button>
+             <button data-id="${it.id}" class="btn-edit">Edit</button>
            </td>`;
          itemsTableBody.appendChild(tr);
        });
@@ -266,6 +330,8 @@
         await changeStock(id, type === 'in' ? qty : -qty, type, note);
       } else if (t.classList.contains('btn-hist')) {
         openHistory(id);
+      } else if (t.classList.contains('btn-edit')) {
+        openEditModal(id);
       }
     });
 
@@ -301,7 +367,7 @@
 
     // show history (last 100 ordered desc)
     async function openHistory(itemId) {
-      historyPanel.style.display = '';
+      historyPanel.classList.add('active');
       historyTitle.textContent = itemId;
       historyDiv.innerHTML = 'Loading...';
       const txsRef = collection(doc(db,'items',itemId), 'transactions');
@@ -319,7 +385,8 @@
           const when = data.createdAt ? (new Date(data.createdAt.seconds * 1000)).toLocaleString() : '';
           const line = document.createElement('div');
           const qtyClass = (data.quantity || 0) > 0 ? 'in' : ((data.quantity || 0) < 0 ? 'out' : '');
-          line.innerHTML = `<strong ${qtyClass ? 'class=\"'+qtyClass+'\"' : ''}>${escapeHtml(String(data.quantity||0))}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class=\"small\">by ${escapeHtml(data.user||'unknown')}${when ? ' at ' + escapeHtml(when) : ''}</span>`;
+          line.innerHTML = `<strong ${qtyClass ? 'class="'+qtyClass+'"' : ''}>${escapeHtml(String(data.quantity||0))}</strong> ${escapeHtml(data.type||'')} — ${escapeHtml(data.note||'')} <span class="small">${escapeHtml(when)}</span>`;
+          line.style.marginBottom='8px';
           historyDiv.appendChild(line);
         });
       } catch (err) {
@@ -327,7 +394,109 @@
         historyDiv.innerHTML = '<div class="small">Error loading history</div>';
       }
     }
-    closeHistory.addEventListener('click', () => { historyPanel.style.display='none'; });
+    closeHistory.addEventListener('click', () => { historyPanel.classList.remove('active'); });
+
+    // Edit modal handlers
+    function openEditModal(itemId) {
+      // Get current item data
+      const itemsRef = collection(db, 'items');
+      const docRef = doc(db, 'items', itemId);
+      getDoc(docRef).then(docSnap => {
+        if (docSnap.exists()) {
+          currentEditingItem = itemId;
+          const data = docSnap.data();
+          editSku.value = data.sku || '';
+          editName.value = data.name || '';
+          editUnit.value = data.unit || '';
+          editBalance.value = data.balance || 0;
+          editAdjustment.value = '';
+          editModal.classList.add('active');
+        }
+      }).catch(err => {
+        console.error('Error fetching item for edit:', err);
+        alert('Error loading item data');
+      });
+    }
+
+    modalCancel.addEventListener('click', () => {
+      editModal.classList.remove('active');
+      currentEditingItem = null;
+    });
+
+    modalSave.addEventListener('click', async () => {
+      if (!currentEditingItem) return;
+      const newName = editName.value.trim();
+      const newUnit = editUnit.value.trim();
+      const newBalance = parseInt(editBalance.value || '0', 10) || 0;
+      const adjustment = editAdjustment.value ? parseInt(editAdjustment.value, 10) : null;
+
+      if (!newName) return alert('Name is required');
+
+      try {
+        const itemRef = doc(db, 'items', currentEditingItem);
+        
+        // Use transaction if adjustment is provided
+        if (adjustment !== null) {
+          await runTransaction(db, async (transaction) => {
+            const docSnap = await transaction.get(itemRef);
+            if (!docSnap.exists()) throw new Error('Item not found');
+            
+            const currentBalance = docSnap.data().balance || 0;
+            const finalBalance = currentBalance + adjustment;
+            
+            if (finalBalance < 0) throw new Error('Resulting balance cannot be negative');
+            
+            transaction.update(itemRef, {
+              name: newName,
+              unit: newUnit,
+              balance: finalBalance
+            });
+
+            // Create transaction record
+            if (adjustment !== 0) {
+              const txsCollection = collection(itemRef, 'transactions');
+              const newTxRef = doc(txsCollection);
+              transaction.set(newTxRef, {
+                quantity: adjustment,
+                type: adjustment > 0 ? 'in' : 'out',
+                note: 'Adjustment via edit',
+                createdAt: serverTimestamp(),
+                user: currentUser ? currentUser.uid : null
+              });
+            }
+          });
+        } else {
+          // Simple update without adjustment
+          await updateDoc(itemRef, {
+            name: newName,
+            unit: newUnit,
+            balance: newBalance
+          });
+        }
+
+        console.log('Item updated successfully:', currentEditingItem);
+        editModal.classList.remove('active');
+        currentEditingItem = null;
+      } catch (err) {
+        console.error('Error updating item:', err);
+        alert('Error: ' + (err.message || err));
+      }
+    });
+
+    // Close modal on overlay click
+    editModal.addEventListener('click', (e) => {
+      if (e.target === editModal) {
+        editModal.classList.remove('active');
+        currentEditingItem = null;
+      }
+    });
+
+    // Close history on overlay click
+    historyPanel.addEventListener('click', (e) => {
+      if (e.target === historyPanel) {
+        historyPanel.classList.remove('active');
+      }
+    });
 
     refreshBtn.addEventListener('click', () => subscribeItems());
     searchInput.addEventListener('input', () => { /* rerender will be triggered by onSnapshot already; force quick refresh: */ subscribeItems(); });
