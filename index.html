@@ -15,8 +15,8 @@
       --glass: rgba(255,255,255,0.03);
       --danger:#ff5d5d;
       --success:#7effa1;
-      --border: rgba(255,255,255,0.06);
-      --glass-border: rgba(255,255,255,0.04);
+      --border: #ffffff; /* HIGH-CONTRAST: white borders */
+      --glass-border: #ffffff; /* HIGH-CONTRAST: white borders */
     }
     html,body{height:100%}
     body{
@@ -39,7 +39,7 @@
     input::placeholder{color:#5b6076}
 
     button{padding:8px 12px;border-radius:8px;border:1px solid var(--glass-border);background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);color:var(--accent);cursor:pointer}
-    button.ghost{background:transparent;color:var(--muted);border:1px dashed rgba(255,255,255,0.03)}
+    button.ghost{background:transparent;color:var(--muted);border:1px dashed var(--glass-border)}
     button.primary{background: linear-gradient(90deg,var(--accent),var(--accent-2)); color:#051018;border:none}
 
     table{width:100%;border-collapse:collapse;margin-top:12px;background:transparent;border-radius:8px;overflow:hidden}
@@ -47,13 +47,13 @@
     tbody td{padding:10px;border-bottom:1px solid var(--glass-border);color:#e6eefc}
 
     .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:0.85em}
-    .in{background:linear-gradient(90deg, rgba(126,255,161,0.12), rgba(0,255,246,0.06));color:var(--success);border:1px solid rgba(126,255,161,0.12)}
-    .out{background:linear-gradient(90deg, rgba(255,93,93,0.06), rgba(255,45,149,0.04));color:var(--danger);border:1px solid rgba(255,93,93,0.06)}
+    .in{background:linear-gradient(90deg, rgba(126,255,161,0.12), rgba(0,255,246,0.06));color:var(--success);border:1px solid var(--border)}
+    .out{background:linear-gradient(90deg, rgba(255,93,93,0.06), rgba(255,45,149,0.04));color:var(--danger);border:1px solid var(--border)}
 
-    .btn-in{background:transparent;border:1px solid rgba(0,255,246,0.12);color:var(--accent);padding:6px 8px;border-radius:6px;font-size:0.9em}
-    .btn-out{background:transparent;border:1px solid rgba(255,45,149,0.12);color:var(--accent-2);padding:6px 8px;border-radius:6px;font-size:0.9em}
-    .btn-hist{background:transparent;border:1px dashed rgba(255,255,255,0.04);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
-    .btn-edit{background:transparent;border:1px solid rgba(255,255,255,0.1);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-in{background:transparent;border:1px solid var(--border);color:var(--accent);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-out{background:transparent;border:1px solid var(--border);color:var(--accent-2);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-hist{background:transparent;border:1px dashed var(--border);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
+    .btn-edit{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
 
     .form-row{display:flex;gap:8px;align-items:center;margin-top:8px}
     .history{max-height:320px;overflow:auto;border-radius:8px;padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid var(--glass-border);margin-top:8px}
@@ -78,7 +78,7 @@
       .controls{flex-direction:column}
       thead{display:none}
       tbody td{display:block;width:100%}
-      tbody tr{margin-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.03)}
+      tbody tr{margin-bottom:12px;border-bottom:1px solid var(--glass-border)}
       #historyPanel{width:95%;max-height:70vh}
       .modal-content{width:95%}
     }
@@ -365,13 +365,13 @@
       }
     }
 
-    // show history (last 100 ordered desc)
+    // show history (last 200 ordered desc)
     async function openHistory(itemId) {
       historyPanel.classList.add('active');
       historyTitle.textContent = itemId;
       historyDiv.innerHTML = 'Loading...';
 
-      // fetch current balance for the item
+      // fetch current balance and unit
       let currentBalance = null;
       let itemUnit = '';
       try {
@@ -428,7 +428,7 @@
         txs.forEach(data => {
           const when = data.createdAt ? (new Date(data.createdAt.seconds * 1000)).toLocaleString() : '';
           const qty = Number(data.quantity || 0);
-          const typeLabel = qty > 0 ? 'IN' : (qty < 0 ? 'OUT' : (data.type || ''));
+          const typeLabel = qty > 0 ? 'IN' : (qty < 0 ? 'OUT' : (data.type || '').toUpperCase());
           const executor = data.user ? (userNameMap[data.user] || data.user) : 'unknown';
 
           const line = document.createElement('div');
