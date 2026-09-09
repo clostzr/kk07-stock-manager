@@ -70,9 +70,27 @@
     .modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
     .modal-buttons button{padding:8px 16px}
 
-    /* Floating history panel - opaque background */
-    #historyPanel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--glass-border);border-radius:10px;padding:18px;display:none;z-index:900;width:90%;max-width:780px;max-height:80vh;overflow:auto}
-    #historyPanel.active{display:block}
+    /* Floating history panel - opaque background with neon cyan outline/glow */
+    #historyPanel{
+      position:fixed;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      background:var(--panel);
+      border:1px solid var(--glass-border);
+      border-radius:10px;
+      padding:18px;
+      display:none;
+      z-index:900;
+      width:90%;
+      max-width:780px;
+      max-height:80vh;
+      overflow:auto;
+      outline: 2px solid var(--accent);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.7), 0 0 18px rgba(0,255,246,0.18);
+      transition: box-shadow 220ms ease, transform 180ms ease;
+    }
+    #historyPanel.active{display:block; transform: translate(-50%,-50%) scale(1.01); box-shadow: 0 16px 40px rgba(0,0,0,0.75), 0 0 36px rgba(0,255,246,0.28);} 
 
     @media (max-width:720px){
       .form-row{flex-direction:column;align-items:stretch}
@@ -302,20 +320,20 @@
       itemsTableBody.innerHTML = '';
       items.filter(it => !q || it.sku.toLowerCase().includes(q) || (it.name || '').toLowerCase().includes(q))
            .forEach(it => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${it.sku}</td>
-            <td>${escapeHtml(it.name||'')}</td>
-            <td><strong>${(it.balance||0)}</strong></td>
-            <td>${escapeHtml(it.unit||'')}</td>
-            <td style="display:flex;gap:6px;flex-wrap:wrap">
-              <button data-id="${it.id}" class="btn-in">+ IN</button>
-              <button data-id="${it.id}" class="btn-out">- OUT</button>
-              <button data-id="${it.id}" class="btn-hist">History</button>
-              <button data-id="${it.id}" class="btn-edit">Edit</button>
-            </td>`;
-          itemsTableBody.appendChild(tr);
-        });
+           const tr = document.createElement('tr');
+           tr.innerHTML = `
+             <td>${it.sku}</td>
+             <td>${escapeHtml(it.name||'')}</td>
+             <td><strong>${(it.balance||0)}</strong></td>
+             <td>${escapeHtml(it.unit||'')}</td>
+             <td style="display:flex;gap:6px;flex-wrap:wrap">
+               <button data-id="${it.id}" class="btn-in">+ IN</button>
+               <button data-id="${it.id}" class="btn-out">- OUT</button>
+               <button data-id="${it.id}" class="btn-hist">History</button>
+               <button data-id="${it.id}" class="btn-edit">Edit</button>
+             </td>`;
+           itemsTableBody.appendChild(tr);
+         });
     }
 
     // click handlers delegated
