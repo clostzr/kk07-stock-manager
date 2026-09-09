@@ -387,22 +387,27 @@
     // show history (last 200 ordered desc)
     async function openHistory(itemId) {
       historyPanel.classList.add('active');
-      historyTitle.textContent = itemId;
+      historyTitle.textContent = 'Loading...';
       historyDiv.innerHTML = 'Loading...';
 
-      // fetch current balance and unit
+      // fetch current balance, unit and name
       let currentBalance = null;
       let itemUnit = '';
+      let itemName = null;
       try {
         const itemSnap = await getDoc(doc(db, 'items', itemId));
         if (itemSnap.exists()) {
           const itemData = itemSnap.data();
           currentBalance = itemData.balance != null ? itemData.balance : null;
           itemUnit = itemData.unit || '';
+          itemName = itemData.name || null;
         }
       } catch (err) {
-        console.warn('Could not fetch item document for balance:', err);
+        console.warn('Could not fetch item document for balance/name:', err);
       }
+
+      // set the history title to the item's name when available, otherwise fall back to SKU
+      historyTitle.textContent = itemName || itemId;
 
       const txsRef = collection(doc(db,'items',itemId), 'transactions');
       const q = query(txsRef, orderBy('createdAt', 'desc'));
