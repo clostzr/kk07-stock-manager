@@ -134,7 +134,12 @@
     <div class="small">Real-time using Firebase Firestore — neon edition</div>
   </header>
 
-  <section id="authSection" class="small card"></section>
+  <section id="authSection" class="small card">
+<div style="display:flex;justify-content:space-between;align-items:center;">
+<span id="authText">Not signed in</span>
+<button id="editProfileBtn" class="ghost" style="display:none">Edit Profile</button>
+</div>
+</section>
 
   <section aria-labelledby="addItemTitle" class="card" style="margin-top:12px">
     <h2 id="addItemTitle">Create new item</h2>
@@ -246,6 +251,12 @@
     const signInBtn = document.getElementById('signInBtn');
     const signOutBtn = document.getElementById('signOutBtn');
     const authSection = document.getElementById('authSection');
+const authText = document.getElementById('authText');
+const editProfileBtn = document.getElementById('editProfileBtn');
+const profileModal = document.getElementById('profileModal');
+const profileDisplayName = document.getElementById('profileDisplayName');
+const profileCancel = document.getElementById('profileCancel');
+const profileSave = document.getElementById('profileSave');
     
     // Edit modal refs
     const editModal = document.getElementById('editModal');
@@ -606,8 +617,41 @@
 
     function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[c])); }
 
-    // initial sample: (uncomment to create a sample item on first load)
+    
+// Profile editor
+editProfileBtn?.addEventListener('click', async ()=>{
+ if(!currentUser) return;
+ const snap=await getDoc(doc(db,'users',currentUser.uid));
+ profileDisplayName.value=snap.exists()?(snap.data().displayName||''):'';
+ profileModal.classList.add('active');
+});
+profileCancel?.addEventListener('click',()=>profileModal.classList.remove('active'));
+profileModal?.addEventListener('click',(e)=>{if(e.target===profileModal) profileModal.classList.remove('active');});
+profileSave?.addEventListener('click', async ()=>{
+ if(!currentUser) return;
+ const name=profileDisplayName.value.trim();
+ if(!name) return alert('Display name is required');
+ await setDoc(doc(db,'users',currentUser.uid),{displayName:name,email:currentUser.email||''},{merge:true});
+ if(authText) authText.textContent=`Signed in as ${name}`;
+ profileModal.classList.remove('active');
+});
+
+// initial sample: (uncomment to create a sample item on first load)
     // setDoc(doc(db,'items','SAMPLE1'),{sku:'SAMPLE1',name:'Sample Item',balance:10,createdAt:serverTimestamp()});
   </script>
+
+<div id="profileModal" class="modal-overlay">
+<div class="modal-content">
+<h2>Edit Profile</h2>
+<div class="modal-form-row">
+<label>Display Name</label>
+<input id="profileDisplayName" type="text" />
+</div>
+<div class="modal-buttons">
+<button id="profileCancel" class="ghost">Cancel</button>
+<button id="profileSave" class="primary">Save</button>
+</div>
+</div>
+</div>
 </body>
 </html>
