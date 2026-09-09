@@ -56,7 +56,8 @@
     .btn-edit{background:transparent;border:1px solid var(--border);color:var(--muted);padding:6px 8px;border-radius:6px;font-size:0.9em}
 
     .form-row{display:flex;gap:8px;align-items:center;margin-top:8px}
-    .history{max-height:320px;overflow:auto;border-radius:8px;padding:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));border:1px solid var(--glass-border);margin-top:8px}
+    /* Make history content opaque */
+    .history{max-height:320px;overflow:auto;border-radius:8px;padding:12px;background:var(--panel);border:1px solid var(--glass-border);margin-top:8px}
 
     /* Modal styles */
     .modal-overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:none;align-items:center;justify-content:center;z-index:1000}
@@ -69,8 +70,8 @@
     .modal-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
     .modal-buttons button{padding:8px 16px}
 
-    /* Floating history panel */
-    #historyPanel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:linear-gradient(180deg,var(--panel), rgba(255,255,255,0.02));border:1px solid var(--glass-border);border-radius:10px;padding:18px;display:none;z-index:900;width:90%;max-width:780px;max-height:80vh;overflow:auto}
+    /* Floating history panel - opaque background */
+    #historyPanel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--panel);border:1px solid var(--glass-border);border-radius:10px;padding:18px;display:none;z-index:900;width:90%;max-width:780px;max-height:80vh;overflow:auto}
     #historyPanel.active{display:block}
 
     @media (max-width:720px){
