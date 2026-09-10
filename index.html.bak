@@ -49,30 +49,23 @@
     /* Each row is its own bordered box */
     tbody tr{
       background:linear-gradient(180deg,var(--panel), rgba(255,255,255,0.02));
+      border:1px solid var(--border);
+      border-radius:8px;
       transition:all 0.2s ease;
     }
     tbody tr:hover{
+      border-color:var(--accent);
       box-shadow:0 0 12px rgba(0,255,246,0.3), inset 0 0 8px rgba(0,255,246,0.1);
       background:linear-gradient(180deg,var(--panel), rgba(0,255,246,0.03));
-    }
-    tbody tr:hover td{
-      border-color: var(--accent);
     }
     
     tbody td{
       padding:12px;
       color:#e6eefc;
-      border-top: 4px solid var(--border);
-      border-bottom: 4px solid var(--border);
+      border:none;
     }
-    tbody td:first-child{
-      border-left: 4px solid var(--border);
-      border-radius:8px 0 0 8px;
-    }
-    tbody td:last-child{
-      border-right: 4px solid var(--border);
-      border-radius:0 8px 8px 0;
-    }
+    tbody td:first-child{border-radius:8px 0 0 8px}
+    tbody td:last-child{border-radius:0 8px 8px 0}
 
     .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:0.85em}
     .in{background:linear-gradient(90deg, rgba(126,255,161,0.12), rgba(0,255,246,0.06));color:var(--success);border:1px solid var(--border)}
@@ -143,10 +136,7 @@
 
   <section id="authSection" class="small card">
 <div style="display:flex;justify-content:space-between;align-items:center;">
-<div style="display:flex;align-items:center;gap:8px">
-<img id="userPhoto" src="" style="width:28px;height:28px;border-radius:50%;display:none;border:1px solid var(--accent);object-fit:cover" />
 <span id="authText">Not signed in</span>
-</div>
 <button id="editProfileBtn" class="ghost" style="display:none">Edit Profile</button>
 </div>
 </section>
@@ -262,7 +252,6 @@
     const signOutBtn = document.getElementById('signOutBtn');
     const authSection = document.getElementById('authSection');
 const authText = document.getElementById('authText');
-const userPhoto = document.getElementById('userPhoto');
 const editProfileBtn = document.getElementById('editProfileBtn');
 const profileModal = document.getElementById('profileModal');
 const profileDisplayName = document.getElementById('profileDisplayName');
@@ -285,14 +274,7 @@ const profileSave = document.getElementById('profileSave');
     onAuthStateChanged(auth, user => {
       currentUser = user;
       console.log('onAuthStateChanged:', user);
-      authText.textContent = user ? `Signed in as ${user.displayName || user.email}` : 'Not signed in';
-      if (user && user.photoURL) {
-        userPhoto.src = user.photoURL;
-        userPhoto.style.display = 'block';
-      } else {
-        userPhoto.style.display = 'none';
-      }
-      editProfileBtn.style.display = user ? '' : 'none';
+      authSection.textContent = user ? `Signed in as ${user.displayName || user.email}` : 'Not signed in';
       signInBtn.style.display = user ? 'none' : '';
       signOutBtn.style.display = user ? '' : 'none';
     });
